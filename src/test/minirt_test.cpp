@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <iostream>
+#include <omp.h>
 
 using namespace minirt;
 
@@ -43,8 +44,8 @@ void initScene(Scene &scene) {
 }
 
 int main(int argc, char **argv) {
-    int viewPlaneResolutionX = (argc > 1 ? std::stoi(argv[1]) : 600);
-    int viewPlaneResolutionY = (argc > 2 ? std::stoi(argv[2]) : 600);
+    int viewPlaneResolutionX = (argc > 1 ? std::stoi(argv[1]) : 2000); // !!! Было 600, поставим 2000
+    int viewPlaneResolutionY = (argc > 2 ? std::stoi(argv[2]) : 2000); // !!! Было 600, поставим 2000
     int numOfSamples = (argc > 3 ? std::stoi(argv[3]) : 1);    
     std::string sceneFile = (argc > 4 ? argv[4] : "");
 
@@ -67,11 +68,19 @@ int main(int argc, char **argv) {
                          viewPlaneSizeX, viewPlaneSizeY, viewPlaneDistance};
 
     Image image(viewPlaneResolutionX, viewPlaneResolutionY); // computed image
-    for(int x = 0; x < viewPlaneResolutionX; x++)
-    for(int y = 0; y < viewPlaneResolutionY; y++) {
+
+    double start_time = omp_get_wtime();
+
+    // управляем OMP_SCHEDULE без перекомпиляции
+    #pragma omp parallel for schedule(runtime) collapse(2)
+    for (int x = 0; x < viewPlaneResolutionX; x++)
+    for (int y = 0; y < viewPlaneResolutionY; y++) {
         const auto color = viewPlane.computePixel(scene, x, y, numOfSamples);
         image.set(x, y, color);
     }
+
+    double end_time = omp_get_wtime();
+    std::cout << "Rendering Time: " << (end_time - start_time) << " sec" << std::endl;
 
     image.saveJPEG("raytracing.jpg");
 

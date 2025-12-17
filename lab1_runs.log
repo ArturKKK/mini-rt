@@ -1,0 +1,225 @@
+
+[2025-12-17T15:41:22] sched=static threads=1 run=1
+Rendering Time: 6.36275 sec
+
+[2025-12-17T15:41:28] sched=static threads=1 run=2
+Rendering Time: 6.22036 sec
+
+[2025-12-17T15:41:35] sched=static threads=1 run=3
+Rendering Time: 6.22703 sec
+
+[2025-12-17T15:41:41] sched=static threads=2 run=1
+Rendering Time: 3.19205 sec
+
+[2025-12-17T15:41:44] sched=static threads=2 run=2
+Rendering Time: 3.19887 sec
+
+[2025-12-17T15:41:48] sched=static threads=2 run=3
+Rendering Time: 3.19765 sec
+
+[2025-12-17T15:41:51] sched=static threads=4 run=1
+Rendering Time: 2.49094 sec
+
+[2025-12-17T15:41:54] sched=static threads=4 run=2
+Rendering Time: 2.48947 sec
+
+[2025-12-17T15:41:56] sched=static threads=4 run=3
+Rendering Time: 2.50176 sec
+
+[2025-12-17T15:41:59] sched=static threads=8 run=1
+Rendering Time: 1.71406 sec
+
+[2025-12-17T15:42:01] sched=static threads=8 run=2
+Rendering Time: 1.71545 sec
+
+[2025-12-17T15:42:03] sched=static threads=8 run=3
+Rendering Time: 1.71322 sec
+
+[2025-12-17T15:42:05] sched=static threads=16 run=1
+Rendering Time: 1.41266 sec
+
+[2025-12-17T15:42:06] sched=static threads=16 run=2
+Rendering Time: 1.40989 sec
+
+[2025-12-17T15:42:08] sched=static threads=16 run=3
+Rendering Time: 1.41993 sec
+
+[2025-12-17T15:42:10] sched=dynamic,1 threads=1 run=1
+Rendering Time: 6.31766 sec
+
+[2025-12-17T15:42:16] sched=dynamic,1 threads=1 run=2
+Rendering Time: 6.31543 sec
+
+[2025-12-17T15:42:23] sched=dynamic,1 threads=1 run=3
+Rendering Time: 6.31062 sec
+
+[2025-12-17T15:42:29] sched=dynamic,1 threads=2 run=1
+Rendering Time: 3.29309 sec
+
+[2025-12-17T15:42:33] sched=dynamic,1 threads=2 run=2
+Rendering Time: 3.28055 sec
+
+[2025-12-17T15:42:36] sched=dynamic,1 threads=2 run=3
+Rendering Time: 3.28975 sec
+
+[2025-12-17T15:42:40] sched=dynamic,1 threads=4 run=1
+Rendering Time: 1.70138 sec
+
+[2025-12-17T15:42:41] sched=dynamic,1 threads=4 run=2
+Rendering Time: 1.69914 sec
+
+[2025-12-17T15:42:43] sched=dynamic,1 threads=4 run=3
+Rendering Time: 1.70261 sec
+
+[2025-12-17T15:42:45] sched=dynamic,1 threads=8 run=1
+Rendering Time: 0.687321 sec
+
+[2025-12-17T15:42:46] sched=dynamic,1 threads=8 run=2
+Rendering Time: 0.690299 sec
+
+[2025-12-17T15:42:47] sched=dynamic,1 threads=8 run=3
+Rendering Time: 0.686873 sec
+
+[2025-12-17T15:42:48] sched=dynamic,1 threads=16 run=1
+Rendering Time: 0.694504 sec
+
+[2025-12-17T15:42:49] sched=dynamic,1 threads=16 run=2
+Rendering Time: 0.687314 sec
+
+[2025-12-17T15:42:50] sched=dynamic,1 threads=16 run=3
+Rendering Time: 0.689688 sec
+
+[2025-12-17T15:42:50] sched=dynamic,10 threads=1 run=1
+Rendering Time: 6.26661 sec
+
+[2025-12-17T15:42:57] sched=dynamic,10 threads=1 run=2
+Rendering Time: 6.24222 sec
+
+[2025-12-17T15:43:03] sched=dynamic,10 threads=1 run=3
+Rendering Time: 6.24094 sec
+
+[2025-12-17T15:43:10] sched=dynamic,10 threads=2 run=1
+Rendering Time: 3.14411 sec
+
+[2025-12-17T15:43:13] sched=dynamic,10 threads=2 run=2
+Rendering Time: 3.14289 sec
+
+[2025-12-17T15:43:16] sched=dynamic,10 threads=2 run=3
+Rendering Time: 3.15824 sec
+
+[2025-12-17T15:43:20] sched=dynamic,10 threads=4 run=1
+Rendering Time: 1.47727 sec
+
+[2025-12-17T15:43:21] sched=dynamic,10 threads=4 run=2
+Rendering Time: 1.57911 sec
+
+[2025-12-17T15:43:23] sched=dynamic,10 threads=4 run=3
+Rendering Time: 1.56644 sec
+
+[2025-12-17T15:43:25] sched=dynamic,10 threads=8 run=1
+Rendering Time: 0.631961 sec
+
+[2025-12-17T15:43:26] sched=dynamic,10 threads=8 run=2
+Rendering Time: 0.632168 sec
+
+[2025-12-17T15:43:26] sched=dynamic,10 threads=8 run=3
+Rendering Time: 0.632677 sec
+
+[2025-12-17T15:43:27] sched=dynamic,10 threads=16 run=1
+Rendering Time: 0.656144 sec
+
+[2025-12-17T15:43:28] sched=dynamic,10 threads=16 run=2
+Rendering Time: 0.631214 sec
+
+[2025-12-17T15:43:29] sched=dynamic,10 threads=16 run=3
+Rendering Time: 0.632463 sec
+
+[2025-12-17T15:43:30] sched=guided threads=1 run=1
+Rendering Time: 6.19833 sec
+
+[2025-12-17T15:43:36] sched=guided threads=1 run=2
+Rendering Time: 6.23018 sec
+
+[2025-12-17T15:43:42] sched=guided threads=1 run=3
+Rendering Time: 6.25519 sec
+
+[2025-12-17T15:43:49] sched=guided threads=2 run=1
+Rendering Time: 3.14077 sec
+
+[2025-12-17T15:43:52] sched=guided threads=2 run=2
+Rendering Time: 3.1381 sec
+
+[2025-12-17T15:43:55] sched=guided threads=2 run=3
+Rendering Time: 3.1331 sec
+
+[2025-12-17T15:43:59] sched=guided threads=4 run=1
+Rendering Time: 2.76988 sec
+
+[2025-12-17T15:44:02] sched=guided threads=4 run=2
+Rendering Time: 2.80234 sec
+
+[2025-12-17T15:44:05] sched=guided threads=4 run=3
+Rendering Time: 2.79066 sec
+
+[2025-12-17T15:44:08] sched=guided threads=8 run=1
+Rendering Time: 1.06185 sec
+
+[2025-12-17T15:44:09] sched=guided threads=8 run=2
+Rendering Time: 1.19767 sec
+
+[2025-12-17T15:44:10] sched=guided threads=8 run=3
+Rendering Time: 1.18996 sec
+
+[2025-12-17T15:44:12] sched=guided threads=16 run=1
+Rendering Time: 0.855549 sec
+
+[2025-12-17T15:44:13] sched=guided threads=16 run=2
+Rendering Time: 0.842006 sec
+
+[2025-12-17T15:44:14] sched=guided threads=16 run=3
+Rendering Time: 0.865608 sec
+
+[2025-12-17T15:44:15] sched=guided,10 threads=1 run=1
+Rendering Time: 6.22758 sec
+
+[2025-12-17T15:44:21] sched=guided,10 threads=1 run=2
+Rendering Time: 6.19874 sec
+
+[2025-12-17T15:44:28] sched=guided,10 threads=1 run=3
+Rendering Time: 6.23123 sec
+
+[2025-12-17T15:44:34] sched=guided,10 threads=2 run=1
+Rendering Time: 3.12373 sec
+
+[2025-12-17T15:44:37] sched=guided,10 threads=2 run=2
+Rendering Time: 3.14097 sec
+
+[2025-12-17T15:44:41] sched=guided,10 threads=2 run=3
+Rendering Time: 3.11604 sec
+
+[2025-12-17T15:44:44] sched=guided,10 threads=4 run=1
+Rendering Time: 2.78044 sec
+
+[2025-12-17T15:44:47] sched=guided,10 threads=4 run=2
+Rendering Time: 2.78908 sec
+
+[2025-12-17T15:44:50] sched=guided,10 threads=4 run=3
+Rendering Time: 2.78028 sec
+
+[2025-12-17T15:44:53] sched=guided,10 threads=8 run=1
+Rendering Time: 1.06389 sec
+
+[2025-12-17T15:44:54] sched=guided,10 threads=8 run=2
+Rendering Time: 1.06498 sec
+
+[2025-12-17T15:44:55] sched=guided,10 threads=8 run=3
+Rendering Time: 1.22745 sec
+
+[2025-12-17T15:44:57] sched=guided,10 threads=16 run=1
+Rendering Time: 0.954897 sec
+
+[2025-12-17T15:44:58] sched=guided,10 threads=16 run=2
+Rendering Time: 0.813809 sec
+
+[2025-12-17T15:44:59] sched=guided,10 threads=16 run=3
+Rendering Time: 0.813257 sec
