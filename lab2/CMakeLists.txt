@@ -1,15 +1,18 @@
 cmake_minimum_required(VERSION 3.10)
-project(PoissonMPI CXX)
+project(PoissonHybrid CXX)
 
-# Ищем MPI с компонентами C++
+set(CMAKE_CXX_STANDARD 17)
+
+# Подключаем MPI и OpenMP
 find_package(MPI REQUIRED COMPONENTS CXX)
+find_package(OpenMP REQUIRED)
 
-add_executable(poisson_mpi poisson_mpi.cpp)
+add_executable(poisson_hybrid poisson_mpi.cpp)
 
-# Линкуем
-target_link_libraries(poisson_mpi PRIVATE MPI::MPI_CXX)
+# Линкуем библиотеки
+target_link_libraries(poisson_hybrid PRIVATE MPI::MPI_CXX OpenMP::OpenMP_CXX)
 
-# Включаем оптимизации для скорости
+# Оптимизации
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|Intel")
-    target_compile_options(poisson_mpi PRIVATE -O3 -march=native)
+    target_compile_options(poisson_hybrid PRIVATE -O3 -march=native)
 endif()
