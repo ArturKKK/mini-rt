@@ -28,7 +28,9 @@ os.makedirs(build_dir)
 print("\n>>> Building...")
 # Добавим флаги компиляции для уверенности
 env = os.environ.copy()
+# Создаем Makefile
 subprocess.run(["cmake", "..", "-DCMAKE_BUILD_TYPE=Release"], cwd=build_dir, check=True, env=env)
+# Компиляция. Флаг -j ускоряет сборку, используя все ядра
 subprocess.run(["cmake", "--build", ".", "-j", str(TOTAL_CORES)], cwd=build_dir, check=True, env=env)
 
 print(f"\n{'MPI':<5} | {'OMP':<5} | {'Time (s)':<10} | {'Status':<10}")
@@ -40,7 +42,9 @@ with open(results_csv, "w") as f:
     for mpi_procs, omp_threads in configs:
         # Устанавливаем переменные окружения для OpenMP
         current_env = os.environ.copy()
+        # Сколько потоков создавать внутри одного процесса
         current_env["OMP_NUM_THREADS"] = str(omp_threads)
+        # Настройки привязки потоков к ядрам (чтобы они не прыгали по ядрам)
         current_env["OMP_PLACES"] = "cores"
         current_env["OMP_PROC_BIND"] = "close"
 
@@ -49,10 +53,10 @@ with open(results_csv, "w") as f:
         # Если MPI привяжет процесс, все OpenMP потоки будут толпиться на одном ядре.
         cmd = [
         "mpirun",
-        "--allow-run-as-root",
-        "--oversubscribe",
-        "--bind-to", "none",
-        "-np", str(mpi_procs),
+        "--allow-run-as-root", # Разрешить запуск под root (нужно для Docker/виртуалок)
+        "--oversubscribe", # Разрешить запуск большего числа процессов, чем есть ядер
+        "--bind-to", "none", # Запрещает MPI прибивать процесс к одному ядру.
+        "-np", str(mpi_procs), # Количество MPI процессов
         executable
         ]
         
@@ -60,19 +64,18 @@ with open(results_csv, "w") as f:
             res = subprocess.run(cmd, env=current_env, capture_output=True, text=True)
             output = res.stdout.strip()
             
-            # Ищем строку с результатами (последняя строка вывода)
-            # Формат вывода C++: "MPI OMP TIME"
+            # Ищем строку с результатами
             time_sec = 0.0
             status = "FAIL"
             
             if res.returncode == 0 and output:
                 lines = output.split('\n')
-                # Ищем строку, которая начинается с числа процессов
+                # Ищем последнюю строку вывода, где есть наши числа
                 for line in reversed(lines):
                     parts = line.split()
                     if len(parts) >= 3 and parts[0] == str(mpi_procs):
                         try:
-                            time_sec = float(parts[2])
+                            time_sec = float(parts[2]) # Берем 3-е число (время)
                             status = "OK"
                             break
                         except ValueError:

@@ -4,7 +4,7 @@ import re
 import statistics
 from datetime import datetime
 
-executable = "./build/test/minirt-test"
+executable = "../build/test/minirt-test"
 args = ["2000", "2000", "1"]
 
 schedules = ["static", "dynamic,1", "dynamic,10", "guided", "guided,10"]

@@ -1,0 +1,404 @@
+
+============================================================
+FILE PATH: ./CMakeLists.txt
+============================================================
+cmake_minimum_required(VERSION 3.10)
+project(PoissonHybrid CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+
+# Подключаем MPI и OpenMP
+find_package(MPI REQUIRED COMPONENTS CXX)
+find_package(OpenMP REQUIRED)
+
+add_executable(poisson_hybrid poisson_mpi.cpp)
+
+# Линкуем библиотеки
+target_link_libraries(poisson_hybrid PRIVATE MPI::MPI_CXX OpenMP::OpenMP_CXX)
+
+# Оптимизации
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|Intel")
+    target_compile_options(poisson_hybrid PRIVATE -O3 -march=native)
+endif()
+
+============================================================
+FILE PATH: ./packer.py
+============================================================
+import os
+
+# Имя итогового файла
+output_filename = "project_code.txt"
+
+# Какие расширения и файлы берем (исходники, хедеры, конфиги, скрипты)
+valid_extensions = ('.cpp', '.c', '.h', '.hpp', '.md', '.sh', '.xml', '.yml', '.py')
+valid_names = ('CMakeLists.txt', 'Makefile')
+
+# Какие папки ПОЛНОСТЬЮ игнорируем
+ignore_dirs = {'.git', 'build', 'cmake-build-debug', '.idea', '.vscode', '__pycache__'}
+
+with open(output_filename, 'w', encoding='utf-8') as outfile:
+    for root, dirs, files in os.walk("."):
+        # Исключаем ненужные папки из обхода
+        dirs[:] = [d for d in dirs if d not in ignore_dirs]
+        
+        for file in files:
+            # Проверяем, подходит ли файл
+            if file.endswith(valid_extensions) or file in valid_names:
+                file_path = os.path.join(root, file)
+                
+                # Пишем красивый заголовок для каждого файла
+                outfile.write(f"\n{'='*60}\n")
+                outfile.write(f"FILE PATH: {file_path}\n")
+                outfile.write(f"{'='*60}\n")
+                
+                try:
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as infile:
+                        outfile.write(infile.read())
+                        outfile.write("\n")
+                except Exception as e:
+                    outfile.write(f"[Error reading file: {e}]\n")
+
+print(f"Готово! Весь код записан в файл: {output_filename}")
+
+
+============================================================
+FILE PATH: ./poisson_mpi.cpp
+============================================================
+#include <mpi.h>
+#include <omp.h>
+#include <vector>
+#include <iostream>
+#include <cmath>
+#include <algorithm>
+
+// --- ПАРАМЕТРЫ ЗАДАЧИ ---
+const int GRID_SIZE = 2048; 
+const double EPS = 0.01;    
+const int MAX_ITER = 1000;  
+
+int main(int argc, char** argv) {
+    int provided;
+    // Инициализируем MPI с поддержкой многопоточности 
+    // MPI_THREAD_FUNNELED означает, что MPI вызовы делает только главный поток, 
+    // но вычисления могут идти в нескольких потоках.
+    MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided);
+
+    int rank, size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    // 1. Топология
+    int dims[2] = {0, 0};
+    MPI_Dims_create(size, 2, dims);
+    
+    int periods[2] = {0, 0};
+    int reorder = 1;
+    MPI_Comm cart_comm;
+    MPI_Cart_create(MPI_COMM_WORLD, 2, dims, periods, reorder, &cart_comm);
+
+    int cart_rank;
+    int coords[2];
+    MPI_Comm_rank(cart_comm, &cart_rank);
+    MPI_Cart_coords(cart_comm, cart_rank, 2, coords);
+
+    int top, bottom, left, right;
+    MPI_Cart_shift(cart_comm, 0, 1, &top, &bottom);
+    MPI_Cart_shift(cart_comm, 1, 1, &left, &right);
+
+    // 2. Декомпозиция
+    int rows_per_proc = GRID_SIZE / dims[0];
+    int cols_per_proc = GRID_SIZE / dims[1];
+
+    int local_rows = rows_per_proc + 2;
+    int local_cols = cols_per_proc + 2;
+
+    std::vector<double> A(local_rows * local_cols, 0.0);
+    std::vector<double> A_new(local_rows * local_cols, 0.0);
+
+    // Инициализация границ (параллелим заполнение, если блоков мало, а потоков много)
+    auto init_bc = [&](std::vector<double>& M) {
+        if (coords[0] == 0) { 
+            #pragma omp parallel for
+            for (int j = 1; j <= cols_per_proc; ++j) M[1 * local_cols + j] = 100.0;
+        }
+        if (coords[0] == dims[0] - 1) { 
+            #pragma omp parallel for
+            for (int j = 1; j <= cols_per_proc; ++j) M[rows_per_proc * local_cols + j] = 0.0;
+        }
+        if (coords[1] == 0) { 
+            #pragma omp parallel for
+            for (int i = 1; i <= rows_per_proc; ++i) M[i * local_cols + 1] = 0.0;
+        }
+        if (coords[1] == dims[1] - 1) { 
+            #pragma omp parallel for
+            for (int i = 1; i <= rows_per_proc; ++i) M[i * local_cols + cols_per_proc] = 0.0;
+        }
+    };
+
+    init_bc(A);
+    A_new = A;
+
+    std::vector<double> send_left(rows_per_proc), recv_left(rows_per_proc);
+    std::vector<double> send_right(rows_per_proc), recv_right(rows_per_proc);
+
+    int i_start = 1, i_end = rows_per_proc;
+    int j_start = 1, j_end = cols_per_proc;
+
+    if (coords[0] == 0)           i_start = 2;
+    if (coords[0] == dims[0] - 1) i_end   = rows_per_proc-1;
+    if (coords[1] == 0)           j_start = 2;
+    if (coords[1] == dims[1] - 1) j_end   = cols_per_proc-1;
+
+    MPI_Barrier(cart_comm);
+    double start_time = MPI_Wtime();
+
+    double global_diff = 0.0;
+    int iter = 0;
+
+    for (iter = 0; iter < MAX_ITER; ++iter) {
+        
+        // --- Обмены (MPI часть - делает Master thread) ---
+        std::vector<MPI_Request> reqs;
+        
+        // Верх/Низ
+        if (top != MPI_PROC_NULL) {
+            MPI_Request r1, r2;
+            MPI_Isend(&A[1 * local_cols + 1], cols_per_proc, MPI_DOUBLE, top, 0, cart_comm, &r1);
+            MPI_Irecv(&A[0 * local_cols + 1], cols_per_proc, MPI_DOUBLE, top, 0, cart_comm, &r2);
+            reqs.push_back(r1); reqs.push_back(r2);
+        }
+        if (bottom != MPI_PROC_NULL) {
+            MPI_Request r1, r2;
+            MPI_Isend(&A[rows_per_proc * local_cols + 1], cols_per_proc, MPI_DOUBLE, bottom, 0, cart_comm, &r1);
+            MPI_Irecv(&A[(rows_per_proc + 1) * local_cols + 1], cols_per_proc, MPI_DOUBLE, bottom, 0, cart_comm, &r2);
+            reqs.push_back(r1); reqs.push_back(r2);
+        }
+
+        // Лево/Право
+        if (left != MPI_PROC_NULL) {
+            for (int i = 0; i < rows_per_proc; ++i) send_left[i] = A[(i + 1) * local_cols + 1];
+            MPI_Request r1, r2;
+            MPI_Isend(send_left.data(), rows_per_proc, MPI_DOUBLE, left, 0, cart_comm, &r1);
+            MPI_Irecv(recv_left.data(), rows_per_proc, MPI_DOUBLE, left, 0, cart_comm, &r2);
+            reqs.push_back(r1); reqs.push_back(r2);
+        }
+        if (right != MPI_PROC_NULL) {
+            for (int i = 0; i < rows_per_proc; ++i) send_right[i] = A[(i + 1) * local_cols + cols_per_proc];
+            MPI_Request r1, r2;
+            MPI_Isend(send_right.data(), rows_per_proc, MPI_DOUBLE, right, 0, cart_comm, &r1);
+            MPI_Irecv(recv_right.data(), rows_per_proc, MPI_DOUBLE, right, 0, cart_comm, &r2);
+            reqs.push_back(r1); reqs.push_back(r2);
+        }
+
+        if (!reqs.empty()) {
+            MPI_Waitall(reqs.size(), reqs.data(), MPI_STATUSES_IGNORE);
+        }
+
+        // Распаковка
+        if (left != MPI_PROC_NULL) {
+            for (int i = 0; i < rows_per_proc; ++i) A[(i + 1) * local_cols + 0] = recv_left[i];
+        }
+        if (right != MPI_PROC_NULL) {
+            for (int i = 0; i < rows_per_proc; ++i) A[(i + 1) * local_cols + cols_per_proc + 1] = recv_right[i];
+        }
+
+        // --- Вычисления (OpenMP часть - распараллеливаем циклы) ---
+        double max_diff = 0.0;
+        
+        // collapse(2) объединяет вложенные циклы для лучшей нагрузки потоков
+        #pragma omp parallel for collapse(2) reduction(max:max_diff)
+        for (int i = i_start; i <= i_end; ++i) {
+            for (int j = j_start; j <= j_end; ++j) {
+                double val = 0.25 * (A[(i - 1) * local_cols + j] + 
+                                     A[(i + 1) * local_cols + j] + 
+                                     A[i * local_cols + (j - 1)] + 
+                                     A[i * local_cols + (j + 1)]);
+                
+                A_new[i * local_cols + j] = val;
+                double diff = std::abs(val - A[i * local_cols + j]);
+                if (diff > max_diff) max_diff = diff;
+            }
+        }
+
+        std::swap(A, A_new);
+
+        if (iter % 10 == 0) {
+            MPI_Allreduce(&max_diff, &global_diff, 1, MPI_DOUBLE, MPI_MAX, cart_comm);
+            if (global_diff < EPS) break;
+        }
+    }
+
+    MPI_Barrier(cart_comm);
+    double end_time = MPI_Wtime();
+    double max_time = 0.0;
+    double local_time = end_time - start_time;
+    MPI_Reduce(&local_time, &max_time, 1, MPI_DOUBLE, MPI_MAX, 0, cart_comm);
+
+    if (cart_rank == 0) {
+        // Вывод: MPI_Procs OMP_Threads Time
+        std::cout << size << " " << omp_get_max_threads() << " " << max_time << std::endl;
+    }
+
+    MPI_Finalize();
+    return 0;
+}
+
+============================================================
+FILE PATH: ./run_lab2.py
+============================================================
+import os
+import subprocess
+import shutil
+
+build_dir = "build"
+executable = f"./{build_dir}/poisson_hybrid"
+results_csv = "lab2_hybrid_results.csv"
+
+TOTAL_CORES = int(os.getenv("LAB2_CORES", "8"))
+
+# Генерируем конфигурации (MPI x OMP), которые в сумме дают 8
+# (8,1), (4,2), (2,4), (1,8)
+configs = []
+p = TOTAL_CORES
+while p >= 1:
+    t = TOTAL_CORES // p
+    configs.append((p, t))
+    p //= 2
+
+print(f">>> Running Hybrid MPI+OpenMP Benchmarks on {TOTAL_CORES} cores")
+print(f">>> Configurations (MPI processes x OMP threads): {configs}")
+
+# 1. Очистка и сборка
+if os.path.exists(build_dir):
+    shutil.rmtree(build_dir)
+os.makedirs(build_dir)
+
+print("\n>>> Building...")
+# Добавим флаги компиляции для уверенности
+env = os.environ.copy()
+subprocess.run(["cmake", "..", "-DCMAKE_BUILD_TYPE=Release"], cwd=build_dir, check=True, env=env)
+subprocess.run(["cmake", "--build", ".", "-j", str(TOTAL_CORES)], cwd=build_dir, check=True, env=env)
+
+print(f"\n{'MPI':<5} | {'OMP':<5} | {'Time (s)':<10} | {'Status':<10}")
+print("-" * 45)
+
+with open(results_csv, "w") as f:
+    f.write("MPI,OMP,Time\n")
+    
+    for mpi_procs, omp_threads in configs:
+        # Устанавливаем переменные окружения для OpenMP
+        current_env = os.environ.copy()
+        current_env["OMP_NUM_THREADS"] = str(omp_threads)
+        current_env["OMP_PLACES"] = "cores"
+        current_env["OMP_PROC_BIND"] = "close"
+
+        # --- ВАЖНО: --bind-to none ---
+        # Это предотвращает привязку MPI-процесса к одному ядру.
+        # Если MPI привяжет процесс, все OpenMP потоки будут толпиться на одном ядре.
+        cmd = [
+        "mpirun",
+        "--allow-run-as-root",
+        "--oversubscribe",
+        "--bind-to", "none",
+        "-np", str(mpi_procs),
+        executable
+        ]
+        
+        try:
+            res = subprocess.run(cmd, env=current_env, capture_output=True, text=True)
+            output = res.stdout.strip()
+            
+            # Ищем строку с результатами (последняя строка вывода)
+            # Формат вывода C++: "MPI OMP TIME"
+            time_sec = 0.0
+            status = "FAIL"
+            
+            if res.returncode == 0 and output:
+                lines = output.split('\n')
+                # Ищем строку, которая начинается с числа процессов
+                for line in reversed(lines):
+                    parts = line.split()
+                    if len(parts) >= 3 and parts[0] == str(mpi_procs):
+                        try:
+                            time_sec = float(parts[2])
+                            status = "OK"
+                            break
+                        except ValueError:
+                            continue
+            
+            if status == "OK":
+                print(f"{mpi_procs:<5} | {omp_threads:<5} | {time_sec:<10.4f} | {status}")
+                f.write(f"{mpi_procs},{omp_threads},{time_sec}\n")
+            else:
+                print(f"{mpi_procs:<5} | {omp_threads:<5} | {'N/A':<10} | {status}")
+                print("Stderr:", res.stderr)
+
+        except Exception as e:
+            print(f"Error running {mpi_procs}x{omp_threads}: {e}")
+
+print(f"\nDone! Results saved to {results_csv}")
+
+Запускал так:
+cd /workdir/mini-rt/lab2
+rm -rf build
+
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+  -DMPI_CXX_COMPILER="$(which mpicxx)"
+
+cmake --build build -j"$(nproc)"
+
+export LAB2_CORES=16
+python3 run_lab2.py
+-- The CXX compiler identification is GNU 11.4.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Found MPI_CXX: /usr/lib/x86_64-linux-gnu/openmpi/lib/libmpi_cxx.so (found version "3.1") 
+-- Found MPI: TRUE (found version "3.1") found components: CXX 
+-- Found OpenMP_CXX: -fopenmp (found version "4.5") 
+-- Found OpenMP: TRUE (found version "4.5")  
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /workdir/mini-rt/lab2/build
+[ 50%] Building CXX object CMakeFiles/poisson_hybrid.dir/poisson_mpi.cpp.o
+[100%] Linking CXX executable poisson_hybrid
+[100%] Built target poisson_hybrid
+>>> Running Hybrid MPI+OpenMP Benchmarks on 16 cores
+>>> Configurations (MPI processes x OMP threads): [(16, 1), (8, 2), (4, 4), (2, 8), (1, 16)]
+
+>>> Building...
+-- The CXX compiler identification is GNU 11.4.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Found MPI_CXX: /usr/lib/x86_64-linux-gnu/openmpi/lib/libmpi_cxx.so (found version "3.1") 
+-- Found MPI: TRUE (found version "3.1") found components: CXX 
+-- Found OpenMP_CXX: -fopenmp (found version "4.5") 
+-- Found OpenMP: TRUE (found version "4.5")  
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /workdir/mini-rt/lab2/build
+[ 50%] Building CXX object CMakeFiles/poisson_hybrid.dir/poisson_mpi.cpp.o
+[100%] Linking CXX executable poisson_hybrid
+[100%] Built target poisson_hybrid
+
+MPI   | OMP   | Time (s)   | Status    
+---------------------------------------------
+16    | 1     | 22.9298    | OK
+8     | 2     | 50.7082    | OK
+4     | 4     | 32.9160    | OK
+2     | 8     | 3.5072     | OK
+1     | 16    | 3.2857     | OK
+
+Done! Results saved to lab2_hybrid_results.csv
+
+вот такие итоги:
+Processes,Dims,MedianTime,Speedup,Flags
+1,1x1,11.6731,1.0,(default)
+2,2x1,6.10356,1.9125067993105662,(default)
+4,2x2,3.1444,3.712345757537209,(default)
+8,4x2,2.25767,5.170419060358689,--use-hwthread-cpus

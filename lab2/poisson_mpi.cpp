@@ -21,35 +21,41 @@ int main(int argc, char** argv) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    // 1. Топология
+    // Топология. Представляем процессы квадратом, чтобы легко находить соседей сверху/низу/слева/справа.
     int dims[2] = {0, 0};
+    // MPI_Dims_create: MPI сам посчитает, как лучше разбить N процессов на сетку X*Y.
     MPI_Dims_create(size, 2, dims);
     
     int periods[2] = {0, 0};
     int reorder = 1;
     MPI_Comm cart_comm;
+     // Создаем саму решетку процессов
     MPI_Cart_create(MPI_COMM_WORLD, 2, dims, periods, reorder, &cart_comm);
 
     int cart_rank;
-    int coords[2];
+    int coords[2]; // Наши координаты в решетке
     MPI_Comm_rank(cart_comm, &cart_rank);
     MPI_Cart_coords(cart_comm, cart_rank, 2, coords);
 
+    // Находим соседей. MPI_Cart_shift сам скажет, кто твой сосед.
+    // Если соседа нет (на краю), он вернет MPI_PROC_NULL.
     int top, bottom, left, right;
     MPI_Cart_shift(cart_comm, 0, 1, &top, &bottom);
     MPI_Cart_shift(cart_comm, 1, 1, &left, &right);
 
-    // 2. Декомпозиция
+    // Декомпозиция
     int rows_per_proc = GRID_SIZE / dims[0];
     int cols_per_proc = GRID_SIZE / dims[1];
 
+    // Добавляем теневые грани
+    // Это рамка толщиной в 1 клетку вокруг наших данных, куда мы запишем данные соседей.
     int local_rows = rows_per_proc + 2;
     int local_cols = cols_per_proc + 2;
 
     std::vector<double> A(local_rows * local_cols, 0.0);
     std::vector<double> A_new(local_rows * local_cols, 0.0);
 
-    // Инициализация границ (параллелим заполнение, если блоков мало, а потоков много)
+    // Граничные условия
     auto init_bc = [&](std::vector<double>& M) {
         if (coords[0] == 0) { 
             #pragma omp parallel for
@@ -72,18 +78,21 @@ int main(int argc, char** argv) {
     init_bc(A);
     A_new = A;
 
+    // Буферы для обмена боковыми границами
     std::vector<double> send_left(rows_per_proc), recv_left(rows_per_proc);
     std::vector<double> send_right(rows_per_proc), recv_right(rows_per_proc);
 
+    // Определяем зону вычислений.
     int i_start = 1, i_end = rows_per_proc;
     int j_start = 1, j_end = cols_per_proc;
 
+    // Если мы на самом краю глобальной сетки, то крайнюю линию тоже не считаем
     if (coords[0] == 0)           i_start = 2;
     if (coords[0] == dims[0] - 1) i_end   = rows_per_proc-1;
     if (coords[1] == 0)           j_start = 2;
     if (coords[1] == dims[1] - 1) j_end   = cols_per_proc-1;
 
-    MPI_Barrier(cart_comm);
+    MPI_Barrier(cart_comm); // Ждем всех перед стартом таймера
     double start_time = MPI_Wtime();
 
     double global_diff = 0.0;
@@ -91,13 +100,16 @@ int main(int argc, char** argv) {
 
     for (iter = 0; iter < MAX_ITER; ++iter) {
         
-        // --- Обмены (MPI часть - делает Master thread) ---
+        // ОБМЕНЫ (MPI)
+        // Массив запросов для асинхронных операций
         std::vector<MPI_Request> reqs;
         
         // Верх/Низ
         if (top != MPI_PROC_NULL) {
             MPI_Request r1, r2;
+            // Отправляем свою 1-ю рабочую строку наверх
             MPI_Isend(&A[1 * local_cols + 1], cols_per_proc, MPI_DOUBLE, top, 0, cart_comm, &r1);
+            // Ждем данные сверху в свою 0-ю (теневую) строку
             MPI_Irecv(&A[0 * local_cols + 1], cols_per_proc, MPI_DOUBLE, top, 0, cart_comm, &r2);
             reqs.push_back(r1); reqs.push_back(r2);
         }
@@ -124,11 +136,12 @@ int main(int argc, char** argv) {
             reqs.push_back(r1); reqs.push_back(r2);
         }
 
+        // Ждем, пока ВСЕ обмены (отправки и приемы) завершатся
         if (!reqs.empty()) {
             MPI_Waitall(reqs.size(), reqs.data(), MPI_STATUSES_IGNORE);
         }
 
-        // Распаковка
+        // Распаковка. Принятые боковые данные перекладываем из буфера в теневые ячейки
         if (left != MPI_PROC_NULL) {
             for (int i = 0; i < rows_per_proc; ++i) A[(i + 1) * local_cols + 0] = recv_left[i];
         }
@@ -136,13 +149,14 @@ int main(int argc, char** argv) {
             for (int i = 0; i < rows_per_proc; ++i) A[(i + 1) * local_cols + cols_per_proc + 1] = recv_right[i];
         }
 
-        // --- Вычисления (OpenMP часть - распараллеливаем циклы) ---
+        // ВЫЧИСЛЕНИЯ
         double max_diff = 0.0;
         
         // collapse(2) объединяет вложенные циклы для лучшей нагрузки потоков
         #pragma omp parallel for collapse(2) reduction(max:max_diff)
         for (int i = i_start; i <= i_end; ++i) {
             for (int j = j_start; j <= j_end; ++j) {
+                // Метод Якоби: новое значение = среднее арифметическое 4-х соседей
                 double val = 0.25 * (A[(i - 1) * local_cols + j] + 
                                      A[(i + 1) * local_cols + j] + 
                                      A[i * local_cols + (j - 1)] + 
@@ -156,6 +170,7 @@ int main(int argc, char** argv) {
 
         std::swap(A, A_new);
 
+        // Проверка сходимости
         if (iter % 10 == 0) {
             MPI_Allreduce(&max_diff, &global_diff, 1, MPI_DOUBLE, MPI_MAX, cart_comm);
             if (global_diff < EPS) break;
@@ -166,6 +181,7 @@ int main(int argc, char** argv) {
     double end_time = MPI_Wtime();
     double max_time = 0.0;
     double local_time = end_time - start_time;
+    // Ищем самое долгое время среди всех процессов
     MPI_Reduce(&local_time, &max_time, 1, MPI_DOUBLE, MPI_MAX, 0, cart_comm);
 
     if (cart_rank == 0) {
