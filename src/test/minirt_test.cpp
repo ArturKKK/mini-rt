@@ -44,8 +44,8 @@ void initScene(Scene &scene) {
 }
 
 int main(int argc, char **argv) {
-    int viewPlaneResolutionX = (argc > 1 ? std::stoi(argv[1]) : 2000); // !!! Было 600, поставим 2000
-    int viewPlaneResolutionY = (argc > 2 ? std::stoi(argv[2]) : 2000); // !!! Было 600, поставим 2000
+    int viewPlaneResolutionX = (argc > 1 ? std::stoi(argv[1]) : 2000);
+    int viewPlaneResolutionY = (argc > 2 ? std::stoi(argv[2]) : 2000);
     int numOfSamples = (argc > 3 ? std::stoi(argv[3]) : 1);    
     std::string sceneFile = (argc > 4 ? argv[4] : "");
 

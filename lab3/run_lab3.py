@@ -6,7 +6,8 @@ import re
 # --- НАСТРОЙКИ ---
 build_dir = "build"
 executable = f"./{build_dir}/matmul_cuda"
-sizes = [1024, 2048, 4096, 8192] # 8192 - это ~256MB под матрицы, V100 съест легко
+# Размеры матриц, которые мы будем тестировать.
+sizes = [1024, 2048, 4096, 8192]
 results_csv = "lab3_results.csv"
 
 print(">>> Configuring and Building with CMake (CUDA)...")
@@ -18,8 +19,10 @@ os.makedirs(build_dir)
 env = os.environ.copy()
 
 try:
-    # CMake для CUDA сам найдет nvcc, если он есть в PATH
+    # Запускаем cmake, чтобы он создал Makefile
     subprocess.run(["cmake", "..", "-DCMAKE_BUILD_TYPE=Release"], cwd=build_dir, check=True, env=env)
+    # Запускаем компиляцию
+    # -j использует все ядра процессора для ускорения сборки
     subprocess.run(["cmake", "--build", ".", "-j", str(os.cpu_count())], cwd=build_dir, check=True, env=env)
 except subprocess.CalledProcessError as e:
     print(f"BUILD FAILED: {e}")
